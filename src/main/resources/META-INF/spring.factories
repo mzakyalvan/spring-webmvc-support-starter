@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+    com.tiket.tix.common.web.autoconfigure.RxJavaSupportAutoConfiguration
