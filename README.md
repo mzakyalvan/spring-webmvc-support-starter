@@ -8,7 +8,7 @@ Clone this repository and then build using normal maven command.
 
 ```sh
 
-$ mvn install
+$ ./mvnw clean install
 
 ```
 
@@ -47,9 +47,9 @@ Add this starter into your project as maven dependency in ```pom.xml``` (Some pa
 
 ### RxJava
 
-This starter enable us to return ```io.reactivex.Single``` type directly from controller's handler method. No need to create ```org.springframework.web.context.request.async.DeferredResult``` manually to create async handler.
+This starter enable us to return ```io.reactivex.Single``` and ```io.reactivex.Completable``` types directly from our controller's handler method. No need to create ```org.springframework.web.context.request.async.DeferredResult``` anymore to create asyc controller.
 
-Look at following java snippets as example.
+Following controller snippets shows current common practice. Nothing wrong with this handler, but more verbose.
 
 ```java
 
@@ -70,11 +70,20 @@ public class RegistrationController {
         registration.subscribe(deferredResult::setResult, deferredResult::setErrorResult);
         return deferredResult;
     }
+    
+    @DeleteMapping("/{id}")
+    Completable deletePerson(@PathVariable String id) { 
+        return Single.just(id)
+            .flatMap(identifier -> registrationService.checkRegistered(identifier)
+                    .andThen(registrationService.deletePerson(identifier).toSingle(() -> identifier)))
+            .onErrorResumeNext(error -> Single.error(new PersonNotFoundException(error)))
+            .ignoreElement(); 
+    }
 }
 
 ```
 
-Instead, return ```io.reactivex.Single``` type directly as shown by following snippet
+To save lines, return ```io.reactivex.Single``` type directly as shown by following snippet
 
 ```java
 
@@ -97,7 +106,9 @@ public class RegistrationController {
 
 Now, we save three (__redundant__) lines of code, drive us to more readable code!
 
-In background, this support enabled by ```org.springframework.web.method.support.AsyncHandlerMethodReturnValueHandler``` implementation as following.
+#### Behind the Scenes
+
+In background, this support enabled by ```org.springframework.web.method.support.AsyncHandlerMethodReturnValueHandler``` implementation as following snippets.
 
 ```java
 
@@ -148,23 +159,87 @@ public class SingleReturnValueHandler implements AsyncHandlerMethodReturnValueHa
 
 ```
 
+```java
+
+package com.tiket.tix.common.web.rxjava;
+
+import io.reactivex.Completable;
+import io.reactivex.CompletableSource;
+import org.springframework.core.MethodParameter;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.context.request.async.DeferredResult;
+import org.springframework.web.context.request.async.WebAsyncUtils;
+import org.springframework.web.method.support.AsyncHandlerMethodReturnValueHandler;
+import org.springframework.web.method.support.ModelAndViewContainer;
+
+/**
+ * {@link AsyncHandlerMethodReturnValueHandler} for handling {@link Completable} returned by
+ * controller's handler method.
+ *
+ * @author zakyalvan
+ */
+public class CompletableReturnValueHandler implements AsyncHandlerMethodReturnValueHandler {
+    @Override
+    public boolean isAsyncReturnValue(Object returnValue, MethodParameter returnType) {
+        return returnValue != null && returnValue instanceof CompletableSource;
+    }
+
+    @Override
+    public boolean supportsReturnType(MethodParameter returnType) {
+        return CompletableSource.class.isAssignableFrom(returnType.getParameterType());
+    }
+
+    @Override
+    public void handleReturnValue(Object returnValue, MethodParameter returnType, ModelAndViewContainer mavContainer, NativeWebRequest webRequest) throws Exception {
+        if(returnValue == null) {
+            mavContainer.setRequestHandled(true);
+            return;
+        }
+
+        Completable completable = (Completable) returnValue;
+        final DeferredResult<Object> deferredResult = new DeferredResult<>();
+        completable.subscribe(() -> deferredResult.setResult(null), deferredResult::setErrorResult);
+        WebAsyncUtils.getAsyncManager(webRequest).startDeferredResultProcessing(deferredResult, mavContainer);
+    }
+}
+
+
+```
+
 In case you don't want to use this starter, add above return value handler type into your project and configure with following extension of ```org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter```.
 
+> Don't forget to modify package name.
+
 ```java
+
+package com.tiket.tix.common.web.rxjava;
+
+import com.tiket.tix.common.web.rxjava.CompletableReturnValueHandler;
+import com.tiket.tix.common.web.rxjava.SingleReturnValueHandler;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.method.support.HandlerMethodReturnValueHandler;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 @Configuration
 public class EnableSingleReturnValueConfiguration extends WebMvcConfigurerAdapter { 
     @Override
     public void addReturnValueHandlers(List<HandlerMethodReturnValueHandler> returnValueHandlers) { 
-        returnValueHandlers.add(singleReturnValueHandler()); 
+        returnValueHandlers.add(singleReturnValueHandler());
+        returnValueHandlers.add(completableReturnValueHandler());
     }
 
     @Bean
     SingleReturnValueHandler singleReturnValueHandler() {
         return new SingleReturnValueHandler();
     }
+    
+    @Bean
+    CompletableReturnValueHandler completableReturnValueHandler() {
+        return new CompletableReturnValueHandler();
+    }
 }
 
 ```
 
-Please running ```com.tiket.tix.common.web.rxjava.SingleReturnValueHandlerTests``` type inside test directory for testing this feature.
+Please running ```com.tiket.tix.common.web.rxjava.RxJavaTypeReturnValueHandlerTests``` type inside test directory for testing this feature.

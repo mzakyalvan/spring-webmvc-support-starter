@@ -10,6 +10,9 @@ import org.springframework.web.method.support.AsyncHandlerMethodReturnValueHandl
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 /**
+ * {@link AsyncHandlerMethodReturnValueHandler} for handling {@link Completable} returned by
+ * controller's handler method.
+ *
  * @author zakyalvan
  */
 public class CompletableReturnValueHandler implements AsyncHandlerMethodReturnValueHandler {
@@ -30,10 +33,9 @@ public class CompletableReturnValueHandler implements AsyncHandlerMethodReturnVa
             return;
         }
 
-        @SuppressWarnings({ "rawtypes", "unchecked" })
         Completable completable = (Completable) returnValue;
         final DeferredResult<Object> deferredResult = new DeferredResult<>();
-        completable.subscribe(() -> mavContainer.setRequestHandled(true), deferredResult::setErrorResult);
+        completable.subscribe(() -> deferredResult.setResult(null), deferredResult::setErrorResult);
         WebAsyncUtils.getAsyncManager(webRequest).startDeferredResultProcessing(deferredResult, mavContainer);
     }
 }

@@ -19,6 +19,7 @@ import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -61,12 +62,22 @@ public class SampleApplication {
                             .andThen(registrationService.personDetails(identifier)).subscribeOn(Schedulers.io()))
                     .onErrorResumeNext(error -> Single.error(new PersonNotFoundException(error)));
         }
+
+        @DeleteMapping("/{id}")
+        Completable deletePerson(@PathVariable String id) {
+            return Single.just(id)
+                    .flatMap(identifier -> registrationService.checkRegistered(identifier)
+                            .andThen(registrationService.deletePerson(identifier).toSingle(() -> identifier)))
+                    .onErrorResumeNext(error -> Single.error(new PersonNotFoundException(error)))
+                    .ignoreElement();
+        }
     }
 
     public interface RegistrationService {
         Single<Person> registerPerson(Person person);
         Single<Person> personDetails(String id);
         Completable checkRegistered(String id);
+        Completable deletePerson(String id);
     }
 
     @Getter

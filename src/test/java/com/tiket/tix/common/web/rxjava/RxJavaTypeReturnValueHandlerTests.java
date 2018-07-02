@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(classes = SampleApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @RunWith(SpringRunner.class)
-public class SingleReturnValueHandlerTests extends AbstractJUnit4SpringContextTests {
+public class RxJavaTypeReturnValueHandlerTests extends AbstractJUnit4SpringContextTests {
     @Autowired
     private SampleApplication.RegistrationService registrationService;
 
@@ -138,7 +138,7 @@ public class SingleReturnValueHandlerTests extends AbstractJUnit4SpringContextTe
     }
 
     @Test
-    public void givenInvalidPersonIdentifier_whenRetrievePersonDetails_thenReturnRegisteredPerson() {
+    public void givenInvalidPersonIdentifier_whenRetrievePersonDetails_thenReturnNotFoundStatus() {
         final String id = UUID.randomUUID().toString();
 
         when(registrationService.checkRegistered(id))
@@ -146,6 +146,29 @@ public class SingleReturnValueHandlerTests extends AbstractJUnit4SpringContextTe
 
         given().contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).accept(MediaType.APPLICATION_JSON_UTF8_VALUE)
                 .when().log().all(true).get(id)
+                .then().log().all(true).assertThat().statusCode(404);
+    }
+
+    @Test
+    public void givenValidPersonIdentifier_whenDeletePerson_thenMustSuccess() {
+        final String id = UUID.randomUUID().toString();
+
+        when(registrationService.checkRegistered(id)).thenReturn(Completable.complete());
+        when(registrationService.deletePerson(id)).thenReturn(Completable.complete());
+
+        given().contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).accept(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .when().log().all(true).delete(id)
+                .then().log().all(true).assertThat().statusCode(200);
+    }
+
+    @Test
+    public void givenInvalidPersonIdentifier_whenDeletePerson_thenReturnNotFoundStatus() {
+        final String id = UUID.randomUUID().toString();
+
+        when(registrationService.checkRegistered(id)).thenReturn(Completable.error(new RuntimeException()));
+
+        given().contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).accept(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .when().log().all(true).delete(id)
                 .then().log().all(true).assertThat().statusCode(404);
     }
 }

@@ -1,5 +1,6 @@
 package com.tiket.tix.common.web.autoconfigure;
 
+import com.tiket.tix.common.web.rxjava.CompletableReturnValueHandler;
 import com.tiket.tix.common.web.rxjava.SingleReturnValueHandler;
 import io.reactivex.plugins.RxJavaPlugins;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
@@ -30,11 +31,17 @@ public class RxJavaSupportAutoConfiguration extends WebMvcConfigurerAdapter {
         @Override
         public void addReturnValueHandlers(List<HandlerMethodReturnValueHandler> returnValueHandlers) {
             returnValueHandlers.add(singleReturnValueHandler());
+            returnValueHandlers.add(completableReturnValueHandler());
         }
 
         @Bean
         SingleReturnValueHandler singleReturnValueHandler() {
             return new SingleReturnValueHandler();
+        }
+
+        @Bean
+        CompletableReturnValueHandler completableReturnValueHandler() {
+            return new CompletableReturnValueHandler();
         }
     }
 }
