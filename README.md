@@ -70,15 +70,6 @@ public class RegistrationController {
         registration.subscribe(deferredResult::setResult, deferredResult::setErrorResult);
         return deferredResult;
     }
-    
-    @DeleteMapping("/{id}")
-    Completable deletePerson(@PathVariable String id) { 
-        return Single.just(id)
-            .flatMap(identifier -> registrationService.checkRegistered(identifier)
-                    .andThen(registrationService.deletePerson(identifier).toSingle(() -> identifier)))
-            .onErrorResumeNext(error -> Single.error(new PersonNotFoundException(error)))
-            .ignoreElement(); 
-    }
 }
 
 ```
@@ -99,6 +90,15 @@ public class RegistrationController {
             .flatMap(errors -> errors.hasErrors() ? 
                 Single.error(new DataBindingException(errors)) : 
                 registrationService.registerPerson(person).subscribeOn(Schedulers.io()));
+    }
+    
+    @DeleteMapping("/{id}")
+    Completable deletePerson(@PathVariable String id) {
+        return Single.just(id)
+            .flatMap(identifier -> registrationService.checkRegistered(identifier)
+                .andThen(registrationService.deletePerson(identifier).toSingle(() -> identifier)))
+            .onErrorResumeNext(error -> Single.error(new PersonNotFoundException(error)))
+            .ignoreElement(); 
     }
 }
 
